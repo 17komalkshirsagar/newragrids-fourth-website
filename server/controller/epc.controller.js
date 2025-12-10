@@ -275,59 +275,110 @@ const { cloudinary } = require("../utils/cloudinary.config");
 // };
 
 
+// exports.addSolarFarm = async (req, res) => {
+//     try {
+//         Upload(req, res, async (err) => {
+//             if (err) return res.status(400).json({ error: err.message });
+//             console.log("start");
+
+//             const epcId = req.params.id;
+//             const epcUser = await User.findById(epcId);
+//             if (!epcUser) return res.status(404).json({ message: "EPC User Not Found" });
+
+//             const farm = JSON.parse(req.body.farm);
+//             const landFile = req.files?.[0];
+
+//             if (!landFile) return res.status(400).json({ message: "Land Document Required" });
+
+//             console.log("upload start");
+//             // Upload file
+//             const uploadStream = () =>
+//                 new Promise((resolveFile, rejectFile) => {
+//                     const stream = cloudinary.uploader.upload_stream(
+//                         { resource_type: "raw" },
+//                         (error, result) => {
+//                             if (error) return rejectFile(error);
+//                             resolveFile(result.secure_url);
+//                         }
+//                     );
+//                     stream.end(landFile.buffer);
+//                 });
+
+//             const fileUrl = await uploadStream();
+
+//             console.log("upload end");
+
+//             const solarFarmObj = {
+//                 ...farm,
+//                 landDocument: { fileUrl, fileType: farm.landOwnership },
+//             };
+
+//             epcUser.solarFarms.push(solarFarmObj);
+//             await epcUser.save();
+
+//             console.log("end");
+//             return res.status(201).json({
+//                 message: "Solar Farm Added Successfully",
+//                 farm: solarFarmObj
+//             });
+//         });
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).json({ message: "Internal Server Error" });
+//     }
+// };
+
+
+const runUpload = (req, res) => {
+    return new Promise((resolve, reject) => {
+        Upload(req, res, (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
 exports.addSolarFarm = async (req, res) => {
     try {
-        Upload(req, res, async (err) => {
-            if (err) return res.status(400).json({ error: err.message });
-            console.log("start");
+        await runUpload(req, res);  // ensures proper async lifecycle
 
-            const epcId = req.params.id;
-            const epcUser = await User.findById(epcId);
-            if (!epcUser) return res.status(404).json({ message: "EPC User Not Found" });
+        console.log("start");
 
-            const farm = JSON.parse(req.body.farm);
-            const landFile = req.files?.[0];
+        const epcId = req.params.id;
+        const epcUser = await User.findById(epcId);
+        if (!epcUser) return res.status(404).json({ message: "EPC User Not Found" });
 
-            if (!landFile) return res.status(400).json({ message: "Land Document Required" });
+        const farm = JSON.parse(req.body.farm);
+        const landFile = req.files?.[0];
+        if (!landFile) return res.status(400).json({ message: "Land Document Required" });
 
-            console.log("upload start");
-            // Upload file
-            const uploadStream = () =>
-                new Promise((resolveFile, rejectFile) => {
-                    const stream = cloudinary.uploader.upload_stream(
-                        { resource_type: "raw" },
-                        (error, result) => {
-                            if (error) return rejectFile(error);
-                            resolveFile(result.secure_url);
-                        }
-                    );
-                    stream.end(landFile.buffer);
-                });
+        const fileUrl = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream(
+                { resource_type: "raw" },
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result.secure_url);
+                }
+            ).end(landFile.buffer);
+        });
 
-            const fileUrl = await uploadStream();
+        const solarFarmObj = {
+            ...farm,
+            landDocument: { fileUrl, fileType: farm.landOwnership },
+        };
 
-            console.log("upload end");
+        epcUser.solarFarms.push(solarFarmObj);
+        await epcUser.save();
 
-            const solarFarmObj = {
-                ...farm,
-                landDocument: { fileUrl, fileType: farm.landOwnership },
-            };
-
-            epcUser.solarFarms.push(solarFarmObj);
-            await epcUser.save();
-
-            console.log("end");
-            return res.status(201).json({
-                message: "Solar Farm Added Successfully",
-                farm: solarFarmObj
-            });
+        return res.status(201).json({
+            message: "Solar Farm Added Successfully",
+            farm: solarFarmObj
         });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Internal Server Error" });
     }
 };
-
 
 
 exports.getEpcProfile = async (req, res) => {
