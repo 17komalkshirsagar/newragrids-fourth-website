@@ -688,6 +688,15 @@ const EpcDashboard = () => {
                             />
                           </div>
                         </div>
+                        <select
+                          value={f.landOwnership}
+                          onChange={(e) => updateFarm(idx, "landOwnership", e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        >
+                          <option value="">Select Land Ownership *</option>
+                          <option value="OWN">OWN</option>
+                          <option value="LEASE">LEASE</option>
+                        </select>
 
                         {/* Capacity */}
                         <div>
