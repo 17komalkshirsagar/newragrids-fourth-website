@@ -279,6 +279,7 @@ exports.addSolarFarm = async (req, res) => {
     try {
         Upload(req, res, async (err) => {
             if (err) return res.status(400).json({ error: err.message });
+            console.log("start");
 
             const epcId = req.params.id;
             const epcUser = await User.findById(epcId);
@@ -289,6 +290,7 @@ exports.addSolarFarm = async (req, res) => {
 
             if (!landFile) return res.status(400).json({ message: "Land Document Required" });
 
+            console.log("upload start");
             // Upload file
             const uploadStream = () =>
                 new Promise((resolveFile, rejectFile) => {
@@ -304,6 +306,8 @@ exports.addSolarFarm = async (req, res) => {
 
             const fileUrl = await uploadStream();
 
+            console.log("upload end");
+
             const solarFarmObj = {
                 ...farm,
                 landDocument: { fileUrl, fileType: farm.landOwnership },
@@ -312,6 +316,7 @@ exports.addSolarFarm = async (req, res) => {
             epcUser.solarFarms.push(solarFarmObj);
             await epcUser.save();
 
+            console.log("end");
             return res.status(201).json({
                 message: "Solar Farm Added Successfully",
                 farm: solarFarmObj
