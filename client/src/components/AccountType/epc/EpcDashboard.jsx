@@ -288,80 +288,61 @@ const EpcDashboard = () => {
 
   const handleSubmitAll = async () => {
     if (!epcId) {
-      toast.error("EPC ID missing. Please login again.");
+      toast.error("Login required");
       return;
     }
 
+    const err = validateAll();
+    if (err) {
+      toast.error(err);
+      return;
+    }
+
+    toast.loading("Uploading farms...");
+
     try {
-      toast.loading("Uploading farms...");
+      for (let i = 0; i < farms.length; i++) {
+        const f = farms[i];
 
-      const validFarms = farms.filter((f) => f.projectName && f.lat && f.lng && f.ac);
+        const fd = new FormData();
+        fd.append(
+          "farm",
+          JSON.stringify({
+            projectName: f.projectName,
+            location: JSON.stringify({
+              coordinates: { lat: Number(f.lat), lng: Number(f.lng) },
+            }),
+            capacity: JSON.stringify({ ac: f.ac, dc: f.dc }),
+            substation: JSON.stringify({
+              category: f.substationCategory,
+              taluka: f.taluka || null,
+              district: f.district || null,
+              substation: f.substation,
+            }),
+            distanceFromSubstation: f.distanceFromSubstation,
+            landOwnership: f.landOwnership,
+            statusOfFarm: f.statusOfFarm,
+            statusOfLoan: f.statusOfLoan,
+            regulatoryStatus: f.regulatoryStatus,
+            tariffExpected: f.tariffExpected,
+            expectedCommissioningTimeline: JSON.stringify(
+              f.expectedCommissioningTimeline
+            ),
+          })
+        );
 
-      if (validFarms.length === 0) {
-        toast.dismiss();
-        toast.error("Please complete at least one farm form.");
-        return;
-      }
-
-      // Strong validation for ENUM
-      for (let i = 0; i < validFarms.length; i++) {
-        const f = validFarms[i];
-
-        if (!["OWN", "LEASE"].includes(f.landOwnership)) {
-          toast.dismiss();
-          toast.error(`Farm ${i + 1}: Select Land Ownership (OWN / LEASE)`);
-          return;
+        if (f.landDocument) {
+          fd.append("landDocument_0", f.landDocument);
         }
 
-        if (!f.landDocument) {
-          toast.dismiss();
-          toast.error(`Farm ${i + 1}: Upload Land Document`);
-          return;
-        }
+        await addSolarFarmApi({ id: epcId, data: fd }).unwrap();
       }
-
-      const fd = new FormData();
-
-      const farmsPayload = validFarms.map((f) => ({
-        projectName: f.projectName,
-        location: JSON.stringify({
-          coordinates: { lat: Number(f.lat), lng: Number(f.lng) },
-        }),
-        capacity: JSON.stringify({ ac: f.ac, dc: f.dc }),
-        substation: JSON.stringify({
-          category: f.substationCategory,
-          taluka: f.taluka || null,
-          district: f.district || null,
-          substation: f.substation,
-        }),
-        distanceFromSubstation: f.distanceFromSubstation,
-        landOwnership: f.landOwnership, // ENUM always correct now
-        statusOfFarm: f.statusOfFarm,
-        statusOfLoan: f.statusOfLoan,
-        regulatoryStatus: f.regulatoryStatus,
-        tariffExpected: f.tariffExpected,
-        expectedCommissioningTimeline: JSON.stringify(f.expectedCommissioningTimeline),
-        landDocument: {
-          fileType: f.landOwnership, // ENUM matches backend requirement
-        },
-      }));
-
-      fd.append("farms", JSON.stringify(farmsPayload));
-
-      validFarms.forEach((f, idx) => {
-        fd.append(`landDocument_${idx}`, f.landDocument);
-      });
-
-      const res = await addSolarFarmApi({
-        id: epcId,
-        data: fd,
-      }).unwrap();
 
       toast.dismiss();
-      toast.success(res?.message || "Farms added successfully!");
-
-      refetch?.();
+      toast.success("All farms submitted successfully");
       setFarms([EmptyFarm()]);
+      refetch?.();
+
     } catch (err) {
       toast.dismiss();
       toast.error(err?.data?.message || "Submission failed");

@@ -280,124 +280,48 @@ exports.addSolarFarm = async (req, res) => {
             if (err) return res.status(400).json({ error: err.message });
 
             const epcId = req.params.id;
-            let { farms } = req.body;
-            farms = JSON.parse(farms);
-
             const epcUser = await User.findById(epcId);
-            if (!epcUser) {
-                return res.status(404).json({ message: "EPC User Not Found" });
-            }
+            if (!epcUser) return res.status(404).json({ message: "EPC User Not Found" });
 
-            const uploadPromises = farms.map((farm, i) => {
-                return new Promise(async (resolve, reject) => {
-                    try {
-                        let {
-                            projectName,
-                            location,
-                            capacity,
-                            substation,
-                            distanceFromSubstation,
-                            landOwnership,
-                            statusOfFarm,
-                            statusOfLoan,
-                            regulatoryStatus,
-                            tariffExpected,
-                            expectedCommissioningTimeline
-                        } = farm;
+            const farm = JSON.parse(req.body.farm);
+            const landFile = req.files?.[0];
 
-                        if (location) location = JSON.parse(location);
-                        if (capacity) capacity = JSON.parse(capacity);
-                        if (substation) substation = JSON.parse(substation);
-                        if (expectedCommissioningTimeline)
-                            expectedCommissioningTimeline = JSON.parse(expectedCommissioningTimeline);
+            if (!landFile) return res.status(400).json({ message: "Land Document Required" });
 
-                        const landFile = req.files?.find(
-                            (f) => f.fieldname === `landDocument_${i}`
-                        );
-
-                        if (!landFile)
-                            return reject(`landDocument_${i} is required`);
-
-                        const uploadStream = () =>
-                            new Promise((resolveFile, rejectFile) => {
-                                const stream = cloudinary.uploader.upload_stream(
-                                    {
-                                        resource_type:
-                                            path.extname(landFile.originalname).toLowerCase() === ".pdf"
-                                                ? "raw"
-                                                : "auto",
-                                    },
-                                    (error, result) => {
-                                        if (error) return rejectFile(error);
-                                        resolveFile(result.secure_url);
-                                    }
-                                );
-                                stream.end(landFile.buffer);
-                            });
-
-                        const fileUrl = await uploadStream();
-
-                        let finalSubstation = {};
-                        if (substation.category === "MSEDCL") {
-                            finalSubstation = {
-                                category: "MSEDCL",
-                                taluka: substation.taluka,
-                                district: null,
-                                substation: substation.substation
-                            };
-                        } else if (substation.category === "MSETCL") {
-                            finalSubstation = {
-                                category: "MSETCL",
-                                district: substation.district,
-                                taluka: null,
-                                substation: substation.substation
-                            };
+            // Upload file
+            const uploadStream = () =>
+                new Promise((resolveFile, rejectFile) => {
+                    const stream = cloudinary.uploader.upload_stream(
+                        { resource_type: "raw" },
+                        (error, result) => {
+                            if (error) return rejectFile(error);
+                            resolveFile(result.secure_url);
                         }
-
-                        if (!["OWN", "LEASE"].includes(landOwnership)) {
-                            landOwnership = null;
-                        }
-
-                        let fileType = farm?.landDocument?.fileType;
-                        if (!["OWN", "LEASE"].includes(fileType)) {
-                            fileType = landOwnership;
-                        }
-
-                        epcUser.solarFarms.push({
-                            projectName,
-                            location,
-                            capacity,
-                            substation: finalSubstation,
-                            distanceFromSubstation,
-                            landOwnership,
-                            landDocument: { fileUrl, fileType },
-                            statusOfFarm,
-                            statusOfLoan,
-                            regulatoryStatus,
-                            tariffExpected,
-                            expectedCommissioningTimeline
-                        });
-
-                        resolve();
-                    } catch (err) {
-                        reject(err);
-                    }
+                    );
+                    stream.end(landFile.buffer);
                 });
-            });
 
-            await Promise.all(uploadPromises);
+            const fileUrl = await uploadStream();
+
+            const solarFarmObj = {
+                ...farm,
+                landDocument: { fileUrl, fileType: farm.landOwnership },
+            };
+
+            epcUser.solarFarms.push(solarFarmObj);
             await epcUser.save();
 
             return res.status(201).json({
-                message: "All Solar Farms Added Successfully",
-                farms: epcUser.solarFarms
+                message: "Solar Farm Added Successfully",
+                farm: solarFarmObj
             });
         });
     } catch (error) {
-        console.error("Multi Solar Farm Add Error:", error);
-        res.status(500).json({ error: "Internal Server Error" });
+        console.error(error);
+        res.status(500).json({ message: "Internal Server Error" });
     }
 };
+
 
 
 exports.getEpcProfile = async (req, res) => {
