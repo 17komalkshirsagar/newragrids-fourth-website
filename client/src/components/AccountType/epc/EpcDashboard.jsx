@@ -1,5 +1,5 @@
-// src/components/EpcDashboard/EpcDashboard.jsx
-import React, { useState, useMemo } from "react";
+
+import React, { useState, useMemo, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 import { FiPlus, FiTrash2, FiMapPin, FiUser, FiMail, FiPhone, FiCalendar, FiUpload, FiLogOut, FiHome, FiGrid, FiBarChart2, FiCheckCircle, FiAlertCircle } from "react-icons/fi";
@@ -8,9 +8,15 @@ import { FaSolarPanel, FaIndustry, FaMapMarkerAlt, FaPlug, FaBalanceScale, FaFil
 import {
   useGetEpcProfileQuery,
   useAddSolarFarmMutation,
-} from "../../../Redux/epcDashboard.api"; 
+} from "../../../Redux/epcDashboard.api";
 import { useLogoutEpcMutation } from "../../../Redux/Epc.api";
 import { Link, useNavigate } from "react-router-dom";
+
+// NEW: substation RTK query imports
+import {
+  useGetMsedclSubstationsQuery,
+  useGetMsetclSubstationsQuery,
+} from "../../../Redux/substations.api";
 
 // Empty template matching your schema (frontend-friendly)
 const EmptyFarm = () => ({
@@ -57,14 +63,83 @@ const EpcDashboard = () => {
 
   const profile = profileData?.user || epcUserFromState || null;
   const [logoutEpc] = useLogoutEpcMutation();
-  
+
   // mutation
   const [addSolarFarmApi, { isLoading: adding }] = useAddSolarFarmMutation();
 
   // UI state: list of farms (multiple forms)
   const [farms, setFarms] = useState([EmptyFarm()]);
 
-  // helpers
+  // -----------------------------
+  // NEW: Substation fetch + normalized lists
+  // -----------------------------
+  // fetch MSEDCL and MSETCL data (we don't skip; caching handled by RTK)
+  const { data: msedclData, isSuccess: okMsedcl } = useGetMsedclSubstationsQuery();
+  const { data: msetclData, isSuccess: okMsetcl } = useGetMsetclSubstationsQuery();
+
+  // normalized arrays for easier filtering
+  const msedclNormalized = useMemo(() => {
+    if (!okMsedcl || !Array.isArray(msedclData)) return [];
+    return msedclData.map((x) => ({
+      district: x.district,
+      taluka: x.taluka,
+      substation: x.substation,
+    }));
+  }, [msedclData, okMsedcl]);
+
+  const msetclNormalized = useMemo(() => {
+    if (!okMsetcl || !Array.isArray(msetclData)) return [];
+    // note: MSETCL entries may have different property names (District/Substation)
+    return msetclData.map((x) => ({
+      district: x.District || "",
+      taluka: "", // MSETCL has no taluka in your source
+      substation: x.Substation || "",
+    }));
+  }, [msetclData, okMsetcl]);
+
+  // helper getters (resolve options based on category)
+  const getDistrictsForCategory = (category) => {
+    if (category === "MSEDCL") {
+      return [...new Set(msedclNormalized.map((s) => s.district).filter(Boolean))];
+    }
+    if (category === "MSETCL") {
+      return [...new Set(msetclNormalized.map((s) => s.district).filter(Boolean))];
+    }
+    return [];
+  };
+
+  const getTalukasForDistrict = (category, district) => {
+    if (!district) return [];
+    if (category === "MSEDCL") {
+      return [
+        ...new Set(
+          msedclNormalized.filter((s) => s.district === district).map((s) => s.taluka).filter(Boolean)
+        ),
+      ];
+    }
+    // MSETCL doesn't have taluka
+    return [];
+  };
+
+  const getStationsFor = (category, district, taluka) => {
+    if (category === "MSEDCL") {
+      return msedclNormalized
+        .filter((s) => s.district === district && (!taluka || s.taluka === taluka))
+        .map((s) => s.substation)
+        .filter(Boolean);
+    }
+    if (category === "MSETCL") {
+      return msetclNormalized
+        .filter((s) => s.district === district)
+        .map((s) => s.substation)
+        .filter(Boolean);
+    }
+    return [];
+  };
+
+  // -----------------------------
+  // helpers for farms management
+  // -----------------------------
   const updateFarm = (idx, key, value) => {
     setFarms((prev) => {
       const next = [...prev];
@@ -98,6 +173,45 @@ const EpcDashboard = () => {
   const addOne = () => setFarms((p) => [...p, EmptyFarm()]);
   const removeOne = (idx) => setFarms((p) => p.filter((_, i) => i !== idx));
 
+  // When user changes substationCategory for a farm, reset dependent fields
+  const handleCategoryChange = (idx, category) => {
+    setFarms((prev) => {
+      const next = [...prev];
+      next[idx] = {
+        ...next[idx],
+        substationCategory: category,
+        district: "",
+        taluka: "",
+        substation: "",
+      };
+      return next;
+    });
+  };
+
+  const handleDistrictChange = (idx, district) => {
+    setFarms((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], district, taluka: "", substation: "" };
+      return next;
+    });
+  };
+
+  const handleTalukaChange = (idx, taluka) => {
+    setFarms((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], taluka, substation: "" };
+      return next;
+    });
+  };
+
+  const handleStationChange = (idx, station) => {
+    setFarms((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], substation: station };
+      return next;
+    });
+  };
+
   // basic validation
   const validateAll = () => {
     if (!epcId) return "EPC ID not found in Redux (login required).";
@@ -106,28 +220,109 @@ const EpcDashboard = () => {
       if (!f.projectName || !f.projectName.trim()) return `Farm ${i + 1}: projectName required`;
       if (!f.lat || !f.lng) return `Farm ${i + 1}: coordinates required`;
       if (!f.ac) return `Farm ${i + 1}: AC capacity required`;
-      if (!f.substation) {
-        // If user didn't use dropdown substation (allow manual substation), check substation field
-      }
-      if (!f.substation && !f.substationCategory) return `Farm ${i + 1}: select substation or category`;
+      if (!f.substation && !f.substationCategory) return `Farm ${i + 1}: select substation category and substation`;
       if (!f.landDocument) return `Farm ${i + 1}: land document required`;
     }
     return null;
   };
 
+  // const handleSubmitAll = async () => {
+  //   const err = validateAll();
+  //   if (err) {
+  //     toast.error(err);
+  //     return;
+  //   }
+
+  //   try {
+  //     toast.loading("Uploading farms...");
+
+  //     const fd = new FormData();
+
+  //     const farmsPayload = farms.map((f) => ({
+  //       projectName: f.projectName,
+  //       location: JSON.stringify({
+  //         coordinates: { lat: Number(f.lat), lng: Number(f.lng) },
+  //       }),
+  //       capacity: JSON.stringify({ ac: f.ac, dc: f.dc }),
+  //       substation: JSON.stringify({
+  //         category: f.substationCategory,
+  //         taluka: f.taluka || null,
+  //         district: f.district || null,
+  //         substation: f.substation,
+  //       }),
+  //       distanceFromSubstation: f.distanceFromSubstation,
+  //       landOwnership: f.landOwnership,
+  //       statusOfFarm: f.statusOfFarm,
+  //       statusOfLoan: f.statusOfLoan,
+  //       regulatoryStatus: f.regulatoryStatus,
+  //       tariffExpected: f.tariffExpected,
+  //       expectedCommissioningTimeline: JSON.stringify(
+  //         f.expectedCommissioningTimeline
+  //       ),
+  //     }));
+
+  //     fd.append("farms", JSON.stringify(farmsPayload));
+
+  //     farms.forEach((f, idx) => {
+  //       if (f.landDocument) {
+  //         fd.append(`landDocument_${idx}`, f.landDocument);
+  //       }
+  //     });
+
+  //     // 🔥🔥 Correct API Call 🔥🔥
+  //     const res = await addSolarFarmApi({
+  //       id: epcId,
+  //       data: fd,
+  //     }).unwrap();
+
+  //     toast.dismiss();
+  //     toast.success(res?.message || "Farms added successfully!");
+
+  //     refetch?.();
+  //     setFarms([EmptyFarm()]);
+  //   } catch (error) {
+  //     toast.dismiss();
+  //     toast.error(error?.data?.message || "Failed to add farms");
+  //   }
+  // };
+
   const handleSubmitAll = async () => {
-    const err = validateAll();
-    if (err) {
-      toast.error(err);
+    if (!epcId) {
+      toast.error("EPC ID missing. Please login again.");
       return;
     }
 
     try {
       toast.loading("Uploading farms...");
 
+      const validFarms = farms.filter((f) => f.projectName && f.lat && f.lng && f.ac);
+
+      if (validFarms.length === 0) {
+        toast.dismiss();
+        toast.error("Please complete at least one farm form.");
+        return;
+      }
+
+      // Strong validation for ENUM
+      for (let i = 0; i < validFarms.length; i++) {
+        const f = validFarms[i];
+
+        if (!["OWN", "LEASE"].includes(f.landOwnership)) {
+          toast.dismiss();
+          toast.error(`Farm ${i + 1}: Select Land Ownership (OWN / LEASE)`);
+          return;
+        }
+
+        if (!f.landDocument) {
+          toast.dismiss();
+          toast.error(`Farm ${i + 1}: Upload Land Document`);
+          return;
+        }
+      }
+
       const fd = new FormData();
 
-      const farmsPayload = farms.map((f) => ({
+      const farmsPayload = validFarms.map((f) => ({
         projectName: f.projectName,
         location: JSON.stringify({
           coordinates: { lat: Number(f.lat), lng: Number(f.lng) },
@@ -140,25 +335,23 @@ const EpcDashboard = () => {
           substation: f.substation,
         }),
         distanceFromSubstation: f.distanceFromSubstation,
-        landOwnership: f.landOwnership,
+        landOwnership: f.landOwnership, // ENUM always correct now
         statusOfFarm: f.statusOfFarm,
         statusOfLoan: f.statusOfLoan,
         regulatoryStatus: f.regulatoryStatus,
         tariffExpected: f.tariffExpected,
-        expectedCommissioningTimeline: JSON.stringify(
-          f.expectedCommissioningTimeline
-        ),
+        expectedCommissioningTimeline: JSON.stringify(f.expectedCommissioningTimeline),
+        landDocument: {
+          fileType: f.landOwnership, // ENUM matches backend requirement
+        },
       }));
 
       fd.append("farms", JSON.stringify(farmsPayload));
 
-      farms.forEach((f, idx) => {
-        if (f.landDocument) {
-          fd.append(`landDocument_${idx}`, f.landDocument);
-        }
+      validFarms.forEach((f, idx) => {
+        fd.append(`landDocument_${idx}`, f.landDocument);
       });
 
-      // 🔥🔥 Correct API Call 🔥🔥
       const res = await addSolarFarmApi({
         id: epcId,
         data: fd,
@@ -169,9 +362,9 @@ const EpcDashboard = () => {
 
       refetch?.();
       setFarms([EmptyFarm()]);
-    } catch (error) {
+    } catch (err) {
       toast.dismiss();
-      toast.error(error?.data?.message || "Failed to add farms");
+      toast.error(err?.data?.message || "Submission failed");
     }
   };
 
@@ -212,14 +405,14 @@ const EpcDashboard = () => {
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: '#f0f8f9' }}>
         <div className="text-center max-w-md">
-        
+
           <FiAlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-800 mb-2">No EPC profile found</h2>
           <p className="text-gray-600 mb-4">Please login to access the dashboard</p>
-          <button 
+          <button
             onClick={() => navigate("/login")}
             className="px-6 py-2 bg-[#2d57a2] text-white rounded-lg hover:bg-[#244a8a] transition-colors"
-            >
+          >
             Go to Login
           </button>
         </div>
@@ -242,7 +435,7 @@ const EpcDashboard = () => {
                 <p className="text-sm text-gray-600">Manage your solar farm projects</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <div className="text-right hidden md:block">
                 <p className="text-sm font-medium text-gray-900">{profile.name}</p>
@@ -267,20 +460,20 @@ const EpcDashboard = () => {
           <div className="lg:col-span-1 space-y-6">
             {/* Profile Card */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
-            <div className="flex items-center gap-4 mb-6">
-  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#2d57a2] to-blue-600 flex items-center justify-center text-white">
-    <FiUser className="w-8 h-8" />
-  </div>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#2d57a2] to-blue-600 flex items-center justify-center text-white">
+                  <FiUser className="w-8 h-8" />
+                </div>
 
-  <div>
-    <Link to="/epcprofile">
-    <h2 className="text-xl font-bold text-gray-900">{profile.name}</h2>
+                <div>
+                  <Link to="/epcprofile">
+                    <h2 className="text-xl font-bold text-gray-900">{profile.name}</h2>
 
-    {/* 👇 Updated small text */}
-    <p className="text-xs text-gray-500">View your EPC profile </p>
-    </Link>
-  </div>
-</div>
+                    {/* 👇 Updated small text */}
+                    <p className="text-xs text-gray-500">View your EPC profile </p>
+                  </Link>
+                </div>
+              </div>
 
 
               <div className="space-y-4">
@@ -336,23 +529,23 @@ const EpcDashboard = () => {
                 <FiBarChart2 className="text-[#2d57a2]" />
                 Project Stats
               </h3>
-              
+
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-600">Total Farms</div>
                   <div className="text-xl font-bold text-[#2d57a2]">{stats.totalFarms}</div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-600">Total Capacity</div>
                   <div className="text-xl font-bold text-[#2d57a2]">{stats.totalCapacity} MW</div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-600">Completed</div>
                   <div className="text-xl font-bold text-green-600">{stats.completedFarms}</div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-600">Pending</div>
                   <div className="text-xl font-bold text-amber-600">{stats.pendingFarms}</div>
@@ -366,7 +559,7 @@ const EpcDashboard = () => {
                   <span>{stats.completedFarms}/{stats.totalFarms}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-[#2d57a2] h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(stats.completedFarms / stats.totalFarms) * 100}%` }}
                   ></div>
@@ -377,7 +570,7 @@ const EpcDashboard = () => {
             {/* Quick Actions */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-              
+
               <div className="space-y-3">
                 <button
                   onClick={addOne}
@@ -421,192 +614,240 @@ const EpcDashboard = () => {
               </div>
 
               <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-                {farms.map((f, idx) => (
-                  <div key={idx} className="border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition-colors">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                          <span className="font-bold text-[#2d57a2]">{idx + 1}</span>
+                {farms.map((f, idx) => {
+                  // compute options for this farm
+                  const districts = getDistrictsForCategory(f.substationCategory);
+                  const talukas = getTalukasForDistrict(f.substationCategory, f.district);
+                  const stations = getStationsFor(f.substationCategory, f.district, f.taluka);
+
+                  return (
+                    <div key={idx} className="border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition-colors">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <span className="font-bold text-[#2d57a2]">{idx + 1}</span>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">Farm #{idx + 1}</h3>
+                            {f.projectName && (
+                              <p className="text-sm text-gray-600">{f.projectName}</p>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">Farm #{idx + 1}</h3>
-                          {f.projectName && (
-                            <p className="text-sm text-gray-600">{f.projectName}</p>
+
+                        <div className="flex items-center gap-2">
+                          {f.landDocument && (
+                            <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                              <FiCheckCircle />
+                              <span>Document Uploaded</span>
+                            </div>
+                          )}
+                          {farms.length > 1 && (
+                            <button
+                              onClick={() => removeOne(idx)}
+                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Remove this farm"
+                            >
+                              <FiTrash2 />
+                            </button>
                           )}
                         </div>
                       </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {f.landDocument && (
-                          <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                            <FiCheckCircle />
-                            <span>Document Uploaded</span>
+
+                      {/* Form Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Project Details */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
+                          <input
+                            placeholder="Enter project name"
+                            value={f.projectName}
+                            onChange={(e) => updateFarm(idx, "projectName", e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                          />
+                        </div>
+
+                        {/* Location */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                            <FaMapMarkerAlt className="text-gray-400" />
+                            Coordinates *
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              placeholder="Latitude"
+                              value={f.lat}
+                              onChange={(e) => updateFarm(idx, "lat", e.target.value)}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            />
+                            <input
+                              placeholder="Longitude"
+                              value={f.lng}
+                              onChange={(e) => updateFarm(idx, "lng", e.target.value)}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            />
                           </div>
-                        )}
-                        {farms.length > 1 && (
-                          <button
-                            onClick={() => removeOne(idx)}
-                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Remove this farm"
+                        </div>
+
+                        {/* Capacity */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                            <FaPlug className="text-gray-400" />
+                            AC Capacity (MW) *
+                          </label>
+                          <input
+                            placeholder="Enter AC capacity"
+                            value={f.ac}
+                            onChange={(e) => updateFarm(idx, "ac", e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">DC Capacity (MWp)</label>
+                          <input
+                            placeholder="Enter DC capacity"
+                            value={f.dc}
+                            onChange={(e) => updateFarm(idx, "dc", e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                          />
+                        </div>
+
+                        {/* Substation Details - now using dropdowns powered by MSEDCL/MSETCL data */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Substation Category *</label>
+                          <select
+                            value={f.substationCategory}
+                            onChange={(e) => handleCategoryChange(idx, e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
                           >
-                            <FiTrash2 />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Form Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Project Details */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
-                        <input
-                          placeholder="Enter project name"
-                          value={f.projectName}
-                          onChange={(e) => updateFarm(idx, "projectName", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                        />
-                      </div>
-
-                      {/* Location */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                          <FaMapMarkerAlt className="text-gray-400" />
-                          Coordinates *
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            placeholder="Latitude"
-                            value={f.lat}
-                            onChange={(e) => updateFarm(idx, "lat", e.target.value)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                          />
-                          <input
-                            placeholder="Longitude"
-                            value={f.lng}
-                            onChange={(e) => updateFarm(idx, "lng", e.target.value)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                          />
+                            <option value="">Select Category</option>
+                            <option value="MSEDCL">MSEDCL</option>
+                            <option value="MSETCL">MSETCL</option>
+                          </select>
                         </div>
-                      </div>
 
-                      {/* Capacity */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                          <FaPlug className="text-gray-400" />
-                          AC Capacity (MW) *
-                        </label>
-                        <input
-                          placeholder="Enter AC capacity"
-                          value={f.ac}
-                          onChange={(e) => updateFarm(idx, "ac", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">DC Capacity (MWp)</label>
-                        <input
-                          placeholder="Enter DC capacity"
-                          value={f.dc}
-                          onChange={(e) => updateFarm(idx, "dc", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                        />
-                      </div>
-
-                      {/* Substation Details */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Substation Category *</label>
-                        <select
-                          value={f.substationCategory}
-                          onChange={(e) => updateFarm(idx, "substationCategory", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                        >
-                          <option value="">Select Category</option>
-                          <option value="MSEDCL">MSEDCL</option>
-                          <option value="MSETCL">MSETCL</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">District</label>
-                        <input
-                          placeholder="Enter district"
-                          value={f.district}
-                          onChange={(e) => updateFarm(idx, "district", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Taluka</label>
-                        <input
-                          placeholder="Enter taluka"
-                          value={f.taluka}
-                          onChange={(e) => updateFarm(idx, "taluka", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Substation *</label>
-                        <input
-                          placeholder="Enter substation name"
-                          value={f.substation}
-                          onChange={(e) => updateFarm(idx, "substation", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                        />
-                      </div>
-
-                      {/* Timeline */}
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
-                          <FaClock className="text-gray-400" />
-                          Expected Timeline
-                        </label>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <input
-                            placeholder="EPC Start (DD/MM/YYYY)"
-                            value={f.expectedCommissioningTimeline.epcWorkStartDate}
-                            onChange={(e) => updateTimeline(idx, "epcWorkStartDate", e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                          />
-                          <input
-                            placeholder="Injection Date (DD/MM/YYYY)"
-                            value={f.expectedCommissioningTimeline.injectionDate}
-                            onChange={(e) => updateTimeline(idx, "injectionDate", e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                          />
-                          <input
-                            placeholder="Commercial Ops (DD/MM/YYYY)"
-                            value={f.expectedCommissioningTimeline.commercialOperationsDate}
-                            onChange={(e) => updateTimeline(idx, "commercialOperationsDate", e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
-                          />
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">District</label>
+                          {/* If no category selected we keep an input fallback */}
+                          {f.substationCategory ? (
+                            <select
+                              value={f.district}
+                              onChange={(e) => handleDistrictChange(idx, e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            >
+                              <option value="">Select District</option>
+                              {districts.map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              placeholder="Enter district"
+                              value={f.district}
+                              onChange={(e) => updateFarm(idx, "district", e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            />
+                          )}
                         </div>
-                      </div>
 
-                      {/* File Upload */}
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                          <FiMapPin className="text-gray-400" />
-                          Land Document *
-                        </label>
-                        <input
-                          type="file"
-                          onChange={(e) => updateFile(idx, e.target.files?.[0] || null)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#2d57a2] file:text-white hover:file:bg-[#244a8a]"
-                        />
-                        {f.landDocument && (
-                          <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
-                            <FiCheckCircle />
-                            Selected: {f.landDocument.name}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Taluka</label>
+                          {/* Taluka only for MSEDCL (for MSETCL we'll show disabled select or allow manual input) */}
+                          {f.substationCategory === "MSEDCL" ? (
+                            <select
+                              value={f.taluka}
+                              onChange={(e) => handleTalukaChange(idx, e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            >
+                              <option value="">Select Taluka</option>
+                              {talukas.map((t) => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              placeholder="Enter taluka"
+                              value={f.taluka}
+                              onChange={(e) => updateFarm(idx, "taluka", e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            />
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Substation *</label>
+                          {f.substationCategory ? (
+                            <select
+                              value={f.substation}
+                              onChange={(e) => handleStationChange(idx, e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            >
+                              <option value="">Select Substation</option>
+                              {stations.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              placeholder="Enter substation name"
+                              value={f.substation}
+                              onChange={(e) => updateFarm(idx, "substation", e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            />
+                          )}
+                        </div>
+
+                        {/* Timeline */}
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                            <FaClock className="text-gray-400" />
+                            Expected Timeline
+                          </label>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input
+                              placeholder="EPC Start (DD/MM/YYYY)"
+                              value={f.expectedCommissioningTimeline.epcWorkStartDate}
+                              onChange={(e) => updateTimeline(idx, "epcWorkStartDate", e.target.value)}
+                              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            />
+                            <input
+                              placeholder="Injection Date (DD/MM/YYYY)"
+                              value={f.expectedCommissioningTimeline.injectionDate}
+                              onChange={(e) => updateTimeline(idx, "injectionDate", e.target.value)}
+                              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            />
+                            <input
+                              placeholder="Commercial Ops (DD/MM/YYYY)"
+                              value={f.expectedCommissioningTimeline.commercialOperationsDate}
+                              onChange={(e) => updateTimeline(idx, "commercialOperationsDate", e.target.value)}
+                              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2d57a2]/20 focus:border-[#2d57a2] outline-none"
+                            />
                           </div>
-                        )}
+                        </div>
+
+                        {/* File Upload */}
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                            <FiMapPin className="text-gray-400" />
+                            Land Document *
+                          </label>
+                          <input
+                            type="file"
+                            onChange={(e) => updateFile(idx, e.target.files?.[0] || null)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#2d57a2] file:text-white hover:file:bg-[#244a8a]"
+                          />
+                          {f.landDocument && (
+                            <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                              <FiCheckCircle />
+                              Selected: {f.landDocument.name}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
