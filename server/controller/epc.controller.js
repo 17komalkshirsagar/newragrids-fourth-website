@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 const { Upload } = require("../utils/upload");
+const { cloudinary } = require("../utils/cloudinary.config");
 
 
 
