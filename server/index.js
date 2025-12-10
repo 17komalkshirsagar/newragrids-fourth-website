@@ -19,8 +19,9 @@ app.use(cookieParser());
 app.use(
     cors({
         origin: [
-            "https://www.newragrids.com",
-            "https://newragrids-client.vercel.app",
+            // "https://www.newragrids.com",
+            // "https://newragrids-client.vercel.app",
+            "https://newragrids-fourth-client.vercel.app",
             "http://localhost:8080",
         ],
         credentials: true,
