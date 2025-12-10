@@ -10,11 +10,12 @@ const Partner = require("../models/EnergyPartner");
 const EnergyAssociate = require("../models/energyAssociate");
 const EnergyPartner = require("../models/EnergyPartner");
 const { cloudinary } = require("../utils/cloudinary.config");
-const { Upload } = require("../utils/upload");
+
 const streamifier = require("streamifier");
 const fs = require("fs");
 const path = require("path");
 const EPC = require('../models/EPC');
+const { Upload } = require('../utils/upload');
 
 // Register admin
 exports.register = asyncHandler(async (req, res) => {
@@ -98,111 +99,7 @@ exports.logout = asyncHandler(async (req, res) => {
 
 
 
-//register user
-// exports.userregister = asyncHandler(async (req, res) => {
-//     const { name, email, mobile, password, companyName, district } = req.body;
 
-//     // Basic empty check
-//     const { isError, error } = checkEmpty({ name, email, mobile, password, companyName, district });
-//     if (isError) {
-//         return res.status(400).json({ message: "All required fields must be filled", error });
-//     }
-
-//     // Email validation
-//     if (!validator.isEmail(email)) {
-//         return res.status(400).json({ message: "Invalid Email" });
-//     }
-
-//     // Mobile validation
-//     if (!validator.isMobilePhone(mobile.toString(), "en-IN")) {
-//         return res.status(400).json({ message: "Invalid Mobile Number" });
-//     }
-
-//     // Strong password validation
-//     if (!validator.isStrongPassword(password)) {
-//         return res.status(400).json({ message: "Provide a Strong Password" });
-//     }
-
-//     // Check if already registered
-//     const userExists = await User.findOne({ email });
-//     if (userExists) {
-//         return res.status(400).json({ message: "Email Already Registered" });
-//     }
-
-//     // Hash password
-//     const hashedPassword = await bcrypt.hash(password, 10);
-
-//     // Create user
-//     const newUser = await User.create({
-//         Name: name,
-//         email,
-//         mobile,
-//         password: hashedPassword,
-//         companyName: companyName || "",
-//         district: district || "",
-//     });
-
-//     // ✅ Send registration email
-//     try {
-//         const subject = "Welcome to Our Platform 🎉";
-//         const message = `
-//   <div style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f5f7fa; padding: 30px;">
-//     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
-
-//       <!-- Header -->
-//       <div style="background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; text-align: center; padding: 25px 10px;">
-//         <h1 style="margin: 0; font-size: 24px;">Welcome to NewRa Grids Pvt. Ltd.</h1>
-//         <p style="margin: 5px 0 0; font-size: 15px;">Empowering India With Sustainable Energy</p>
-//       </div>
-
-//       <!-- Body -->
-//       <div style="padding: 25px; color: #333;">
-//         <h2 style="color: #16a34a; margin-bottom: 10px;">Hello, ${name} 👋</h2>
-//         <p style="margin: 0 0 15px;">Thank you for registering with <b>NewRa Grids Pvt. Ltd.</b> We’re excited to have you onboard!</p>
-//         <p style="margin: 0 0 15px;">Here are your registration details:</p>
-
-//         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-//           <tr><td style="padding: 8px 0;"><b>Email:</b></td><td>${email}</td></tr>
-//           <tr><td style="padding: 8px 0;"><b>Mobile:</b></td><td>${mobile}</td></tr>
-//           <tr><td style="padding: 8px 0;"><b>Company:</b></td><td>${companyName || "N/A"}</td></tr>
-//           <tr><td style="padding: 8px 0;"><b>District:</b></td><td>${district || "N/A"}</td></tr>
-//           <tr><td style="padding: 8px 0;"><b>Password:</b></td><td>${password}</td></tr>
-//         </table>
-
-//         <p style="margin: 15px 0;">You can now log in and explore your dashboard. If you didn’t register for this account, please contact our support team immediately.</p>
-
-//         <div style="text-align: center; margin-top: 30px;">
-//           <a href="https://newragrids.com/UserLogin" style="background-color: #16a34a; color: #fff; padding: 10px 25px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-//             Go to Dashboard
-//           </a>
-//         </div>
-//       </div>
-
-//       <!-- Footer -->
-//       <div style="background-color: #f0fdf4; text-align: center; padding: 15px; font-size: 13px; color: #555;">
-//         <p style="margin: 0;">© ${new Date().getFullYear()} Newra Grids Pvt. Ltd. All rights reserved.</p>
-//         <p style="margin: 5px 0 0;">📍 Chhatrapati SambhajNagar, Maharashtra | 🌐 <a href="https://newragrids.com" style="color: #16a34a; text-decoration: none;">www.newragrids.com</a></p>
-//       </div>
-
-//     </div>
-//   </div>
-// `;
-
-//         await sendEmail({
-//             subject,
-//             to: email,
-//             message,
-//         });
-//         console.log("Registration email sent successfully ✅");
-//     } catch (err) {
-//         console.error("Failed to send registration email ❌", err);
-//     }
-
-//     res.status(200).json({
-//         message: "User registered successfully",
-//         userId: newUser._id,
-//     });
-// });
 
 
 exports.userregister = asyncHandler(async (req, res) => {
@@ -248,7 +145,7 @@ exports.userregister = asyncHandler(async (req, res) => {
         district: district || "",
     });
 
-    
+
 
     res.status(200).json({
         message: "User registered successfully",
@@ -379,12 +276,135 @@ exports.Findcustomer = asyncHandler(async (req, res) => {
 
 
 
+// exports.registerPartner = async (req, res) => {
+
+//     try {
+//         Upload(req, res, async (err) => {
+//             if (err) return res.status(400).json({ error: err.message });
+
+
+//             let location = JSON.parse(req.body.location || "{}");
+//             let capacity = JSON.parse(req.body.capacity || "{}");
+//             let substation = JSON.parse(req.body.substation || "{}");
+//             let expectedCommissioningTimeline = JSON.parse(
+//                 req.body.expectedCommissioningTimeline || "{}"
+//             );
+
+//             const {
+//                 name,
+//                 email,
+//                 mobile,
+//                 address,password,
+//                 projectName,
+//                 distanceFromSubstation,
+//                 landOwnership,
+//                 statusOfFarm,
+//                 statusOfLoan,
+//                 regulatoryStatus,
+//                 tariffExpected
+//             } = req.body;
+
+//             // FILE CHECK
+//              const hashedPassword = await bcrypt.hash(password, 10);
+//             const landFile = req.files?.find(
+//                 (f) => f.fieldname === "landDocument"
+//             );
+
+//             if (!landFile) {
+//                 return res.status(400).json({
+//                     message: "landDocument file is required!"
+//                 });
+//             }
+
+//             // CLOUDINARY UPLOAD
+//             const uploadToCloudinary = () => {
+//                 return new Promise((resolve, reject) => {
+//                     const stream = cloudinary.uploader.upload_stream(
+//                         {
+//                             resource_type:
+//                                 path.extname(landFile.originalname).toLowerCase() === ".pdf"
+//                                     ? "raw"
+//                                     : "auto",
+//                         },
+//                         (error, result) => {
+//                             if (error) return reject(error);
+//                             resolve(result.secure_url);
+//                         }
+//                     );
+
+//                     fs.createReadStream(landFile.path).pipe(stream);
+//                 });
+//             };
+
+//             const fileUrl = await uploadToCloudinary();
+
+//            // ⭐ NEW SUBSTATION LOGIC BASED ON category
+// let finalSubstation = {};
+
+// if (substation.category === "MSEDCL") {
+//     finalSubstation = {
+//         category: "MSEDCL",
+//         taluka: substation.taluka,
+//         district: substation.district,     // ❌ WRONG
+//         substation: substation.substation
+//     };
+// }
+
+// if (substation.category === "MSETCL") {
+//     finalSubstation = {
+//         category: "MSETCL",
+//         district: substation.district,
+//         taluka: null,
+//         substation: substation.substation
+//     };
+// }
+
+
+//             // ⭐ SAVE TO DB
+//             const partner = await EnergyPartner.create({
+//                 name,
+//                 email,
+//                 mobile,
+//                 address,
+//                 projectName,
+// password: hashedPassword,  
+//                 location,
+//                 capacity,
+//                 substation: finalSubstation,
+
+//                 distanceFromSubstation,
+//                 landOwnership,
+
+//                 landDocument: {
+//                     fileUrl,
+//                     fileType: landOwnership
+//                 },
+
+//                 statusOfFarm,
+//                 statusOfLoan,
+//                 regulatoryStatus,
+//                 tariffExpected,
+//                 expectedCommissioningTimeline
+//             });
+
+//             return res.status(201).json({
+//                 message: "Partner Registered Successfully",
+//                 partner
+//             });
+//         });
+//     } catch (error) {
+//         console.error("Upload error:", error);
+//         res.status(500).json({ error: "Internal Server Error" });
+//     }
+// };
+// partner login 
+
+
 exports.registerPartner = async (req, res) => {
     try {
         Upload(req, res, async (err) => {
             if (err) return res.status(400).json({ error: err.message });
 
-            // ⭐ PARSE JSON FIELDS COMING FROM FORM-DATA
             let location = JSON.parse(req.body.location || "{}");
             let capacity = JSON.parse(req.body.capacity || "{}");
             let substation = JSON.parse(req.body.substation || "{}");
@@ -396,7 +416,8 @@ exports.registerPartner = async (req, res) => {
                 name,
                 email,
                 mobile,
-                address,password,
+                address,
+                password,
                 projectName,
                 distanceFromSubstation,
                 landOwnership,
@@ -406,8 +427,8 @@ exports.registerPartner = async (req, res) => {
                 tariffExpected
             } = req.body;
 
-            // FILE CHECK
-             const hashedPassword = await bcrypt.hash(password, 10);
+            const hashedPassword = await bcrypt.hash(password, 10);
+
             const landFile = req.files?.find(
                 (f) => f.fieldname === "landDocument"
             );
@@ -418,70 +439,59 @@ exports.registerPartner = async (req, res) => {
                 });
             }
 
-            // CLOUDINARY UPLOAD
-            const uploadToCloudinary = () => {
-                return new Promise((resolve, reject) => {
-                    const stream = cloudinary.uploader.upload_stream(
-                        {
-                            resource_type:
-                                path.extname(landFile.originalname).toLowerCase() === ".pdf"
-                                    ? "raw"
-                                    : "auto",
-                        },
-                        (error, result) => {
-                            if (error) return reject(error);
-                            resolve(result.secure_url);
-                        }
-                    );
+            // Cloudinary Upload - FIXED for Vercel
+            const fileUrl = await new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    {
+                        resource_type:
+                            path.extname(landFile.originalname).toLowerCase() === ".pdf"
+                                ? "raw"
+                                : "auto",
+                    },
+                    (error, result) => {
+                        if (error) return reject(error);
+                        resolve(result.secure_url);
+                    }
+                );
 
-                    fs.createReadStream(landFile.path).pipe(stream);
-                });
-            };
+                // FIX: Use buffer instead of file path
+                stream.end(landFile.buffer);
+            });
 
-            const fileUrl = await uploadToCloudinary();
+            let finalSubstation = {};
 
-           // ⭐ NEW SUBSTATION LOGIC BASED ON category
-let finalSubstation = {};
+            if (substation.category === "MSEDCL") {
+                finalSubstation = {
+                    category: "MSEDCL",
+                    taluka: substation.taluka,
+                    district: substation.district,
+                    substation: substation.substation
+                };
+            } else if (substation.category === "MSETCL") {
+                finalSubstation = {
+                    category: "MSETCL",
+                    district: substation.district,
+                    taluka: null,
+                    substation: substation.substation
+                };
+            }
 
-if (substation.category === "MSEDCL") {
-    finalSubstation = {
-        category: "MSEDCL",
-        taluka: substation.taluka,
-        district: substation.district,     // ❌ WRONG
-        substation: substation.substation
-    };
-}
-
-if (substation.category === "MSETCL") {
-    finalSubstation = {
-        category: "MSETCL",
-        district: substation.district,
-        taluka: null,
-        substation: substation.substation
-    };
-}
-
-
-            // ⭐ SAVE TO DB
             const partner = await EnergyPartner.create({
                 name,
                 email,
                 mobile,
                 address,
                 projectName,
-password: hashedPassword,  
+                password: hashedPassword,
                 location,
                 capacity,
                 substation: finalSubstation,
-
                 distanceFromSubstation,
                 landOwnership,
-
                 landDocument: {
                     fileUrl,
                     fileType: landOwnership
                 },
-
                 statusOfFarm,
                 statusOfLoan,
                 regulatoryStatus,
@@ -499,7 +509,8 @@ password: hashedPassword,
         res.status(500).json({ error: "Internal Server Error" });
     }
 };
-// partner login 
+
+
 exports.loginPartner = async (req, res) => {
     try {
         const { email, password } = req.body;
