@@ -150,6 +150,130 @@ const { Upload } = require("../utils/upload");
 
 
 
+// exports.addSolarFarm = async (req, res) => {
+//     try {
+//         Upload(req, res, async (err) => {
+//             if (err) return res.status(400).json({ error: err.message });
+
+//             const epcId = req.params.id;
+//             let { farms } = req.body;
+//             farms = JSON.parse(farms);
+
+//             const epcUser = await User.findById(epcId);
+//             if (!epcUser) {
+//                 return res.status(404).json({ message: "EPC User Not Found" });
+//             }
+
+//             for (let i = 0; i < farms.length; i++) {
+//                 let {
+//                     projectName,
+//                     location,
+//                     capacity,
+//                     substation,
+//                     distanceFromSubstation,
+//                     landOwnership,
+//                     statusOfFarm,
+//                     statusOfLoan,
+//                     regulatoryStatus,
+//                     tariffExpected,
+//                     expectedCommissioningTimeline
+//                 } = farms[i];
+
+//                 if (location) location = JSON.parse(location);
+//                 if (capacity) capacity = JSON.parse(capacity);
+//                 if (substation) substation = JSON.parse(substation);
+//                 if (expectedCommissioningTimeline)
+//                     expectedCommissioningTimeline = JSON.parse(expectedCommissioningTimeline);
+
+//                 const landFile = req.files?.find(
+//                     (f) => f.fieldname === `landDocument_${i}`
+//                 );
+
+//                 if (!landFile) {
+//                     return res.status(400).json({
+//                         message: `landDocument ${i} file is required`
+//                     });
+//                 }
+
+
+//                 const fileUrl = await new Promise((resolve, reject) => {
+//                     const stream = cloudinary.uploader.upload_stream(
+//                         {
+//                             resource_type:
+//                                 path.extname(landFile.originalname).toLowerCase() === ".pdf"
+//                                     ? "raw"
+//                                     : "auto",
+//                         },
+//                         (error, result) => {
+//                             if (error) return reject(error);
+//                             resolve(result.secure_url);
+//                         }
+//                     );
+
+//                     stream.end(landFile.buffer);
+//                 });
+
+//                 let finalSubstation = {};
+//                 if (substation.category === "MSEDCL") {
+//                     finalSubstation = {
+//                         category: "MSEDCL",
+//                         taluka: substation.taluka,
+//                         district: null,
+//                         substation: substation.substation
+//                     };
+//                 } else if (substation.category === "MSETCL") {
+//                     finalSubstation = {
+//                         category: "MSETCL",
+//                         district: substation.district,
+//                         taluka: null,
+//                         substation: substation.substation
+//                     };
+//                 }
+
+//                 if (!["OWN", "LEASE"].includes(landOwnership)) {
+//                     landOwnership = null;
+//                 }
+
+//                 let fileType = farms[i]?.landDocument?.fileType;
+//                 if (!["OWN", "LEASE"].includes(fileType)) {
+//                     fileType = landOwnership;
+//                 }
+
+//                 epcUser.solarFarms.push({
+//                     projectName,
+//                     location,
+//                     capacity,
+//                     substation: finalSubstation,
+//                     distanceFromSubstation,
+//                     landOwnership,
+//                     landDocument: {
+//                         fileUrl,
+//                         fileType
+//                     },
+//                     statusOfFarm,
+//                     statusOfLoan,
+//                     regulatoryStatus,
+//                     tariffExpected,
+//                     expectedCommissioningTimeline
+//                 });
+//             }
+
+//             await epcUser.save();
+
+//             res.status(201).json({
+//                 message: "All Solar Farms Added Successfully",
+//                 farms: epcUser.solarFarms
+//             });
+
+//         });
+
+//     } catch (error) {
+//         console.error("Multi Solar Farm Add Error:", error);
+//         res.status(500).json({ error: "Internal Server Error" });
+//     }
+// };
+
+
 exports.addSolarFarm = async (req, res) => {
     try {
         Upload(req, res, async (err) => {
@@ -164,109 +288,111 @@ exports.addSolarFarm = async (req, res) => {
                 return res.status(404).json({ message: "EPC User Not Found" });
             }
 
-            for (let i = 0; i < farms.length; i++) {
-                let {
-                    projectName,
-                    location,
-                    capacity,
-                    substation,
-                    distanceFromSubstation,
-                    landOwnership,
-                    statusOfFarm,
-                    statusOfLoan,
-                    regulatoryStatus,
-                    tariffExpected,
-                    expectedCommissioningTimeline
-                } = farms[i];
+            const uploadPromises = farms.map((farm, i) => {
+                return new Promise(async (resolve, reject) => {
+                    try {
+                        let {
+                            projectName,
+                            location,
+                            capacity,
+                            substation,
+                            distanceFromSubstation,
+                            landOwnership,
+                            statusOfFarm,
+                            statusOfLoan,
+                            regulatoryStatus,
+                            tariffExpected,
+                            expectedCommissioningTimeline
+                        } = farm;
 
-                if (location) location = JSON.parse(location);
-                if (capacity) capacity = JSON.parse(capacity);
-                if (substation) substation = JSON.parse(substation);
-                if (expectedCommissioningTimeline)
-                    expectedCommissioningTimeline = JSON.parse(expectedCommissioningTimeline);
+                        if (location) location = JSON.parse(location);
+                        if (capacity) capacity = JSON.parse(capacity);
+                        if (substation) substation = JSON.parse(substation);
+                        if (expectedCommissioningTimeline)
+                            expectedCommissioningTimeline = JSON.parse(expectedCommissioningTimeline);
 
-                const landFile = req.files?.find(
-                    (f) => f.fieldname === `landDocument_${i}`
-                );
+                        const landFile = req.files?.find(
+                            (f) => f.fieldname === `landDocument_${i}`
+                        );
 
-                if (!landFile) {
-                    return res.status(400).json({
-                        message: `landDocument ${i} file is required`
-                    });
-                }
+                        if (!landFile)
+                            return reject(`landDocument_${i} is required`);
 
+                        const uploadStream = () =>
+                            new Promise((resolveFile, rejectFile) => {
+                                const stream = cloudinary.uploader.upload_stream(
+                                    {
+                                        resource_type:
+                                            path.extname(landFile.originalname).toLowerCase() === ".pdf"
+                                                ? "raw"
+                                                : "auto",
+                                    },
+                                    (error, result) => {
+                                        if (error) return rejectFile(error);
+                                        resolveFile(result.secure_url);
+                                    }
+                                );
+                                stream.end(landFile.buffer);
+                            });
 
-                const fileUrl = await new Promise((resolve, reject) => {
-                    const stream = cloudinary.uploader.upload_stream(
-                        {
-                            resource_type:
-                                path.extname(landFile.originalname).toLowerCase() === ".pdf"
-                                    ? "raw"
-                                    : "auto",
-                        },
-                        (error, result) => {
-                            if (error) return reject(error);
-                            resolve(result.secure_url);
+                        const fileUrl = await uploadStream();
+
+                        let finalSubstation = {};
+                        if (substation.category === "MSEDCL") {
+                            finalSubstation = {
+                                category: "MSEDCL",
+                                taluka: substation.taluka,
+                                district: null,
+                                substation: substation.substation
+                            };
+                        } else if (substation.category === "MSETCL") {
+                            finalSubstation = {
+                                category: "MSETCL",
+                                district: substation.district,
+                                taluka: null,
+                                substation: substation.substation
+                            };
                         }
-                    );
 
-                    stream.end(landFile.buffer);
+                        if (!["OWN", "LEASE"].includes(landOwnership)) {
+                            landOwnership = null;
+                        }
+
+                        let fileType = farm?.landDocument?.fileType;
+                        if (!["OWN", "LEASE"].includes(fileType)) {
+                            fileType = landOwnership;
+                        }
+
+                        epcUser.solarFarms.push({
+                            projectName,
+                            location,
+                            capacity,
+                            substation: finalSubstation,
+                            distanceFromSubstation,
+                            landOwnership,
+                            landDocument: { fileUrl, fileType },
+                            statusOfFarm,
+                            statusOfLoan,
+                            regulatoryStatus,
+                            tariffExpected,
+                            expectedCommissioningTimeline
+                        });
+
+                        resolve();
+                    } catch (err) {
+                        reject(err);
+                    }
                 });
+            });
 
-                let finalSubstation = {};
-                if (substation.category === "MSEDCL") {
-                    finalSubstation = {
-                        category: "MSEDCL",
-                        taluka: substation.taluka,
-                        district: null,
-                        substation: substation.substation
-                    };
-                } else if (substation.category === "MSETCL") {
-                    finalSubstation = {
-                        category: "MSETCL",
-                        district: substation.district,
-                        taluka: null,
-                        substation: substation.substation
-                    };
-                }
-
-                if (!["OWN", "LEASE"].includes(landOwnership)) {
-                    landOwnership = null;
-                }
-
-                let fileType = farms[i]?.landDocument?.fileType;
-                if (!["OWN", "LEASE"].includes(fileType)) {
-                    fileType = landOwnership;
-                }
-
-                epcUser.solarFarms.push({
-                    projectName,
-                    location,
-                    capacity,
-                    substation: finalSubstation,
-                    distanceFromSubstation,
-                    landOwnership,
-                    landDocument: {
-                        fileUrl,
-                        fileType
-                    },
-                    statusOfFarm,
-                    statusOfLoan,
-                    regulatoryStatus,
-                    tariffExpected,
-                    expectedCommissioningTimeline
-                });
-            }
-
+            await Promise.all(uploadPromises);
             await epcUser.save();
 
-            res.status(201).json({
+            return res.status(201).json({
                 message: "All Solar Farms Added Successfully",
                 farms: epcUser.solarFarms
             });
-
         });
-
     } catch (error) {
         console.error("Multi Solar Farm Add Error:", error);
         res.status(500).json({ error: "Internal Server Error" });
