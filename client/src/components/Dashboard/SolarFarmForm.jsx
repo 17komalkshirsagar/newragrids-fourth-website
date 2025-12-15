@@ -190,43 +190,6 @@ const SolarFarmForm = () => {
       },
     ]);
 
-  // const handleSubmit = async () => {
-  //   if (!associateId) {
-  //     alert("Associate ID missing. Please login again.");
-  //     return;
-  //   }
-
-  //   try {
-  //     const fd = new FormData();
-  //     fd.append("onboardType", "SOLARFARM");
-  //     fd.append(
-  //       "solarFarms",
-  //       JSON.stringify(
-  //         farms.map((f) => ({
-  //           ...f,
-  //           landDocument: { fileType: f.landDocument.fileType || null },
-  //         }))
-  //       )
-  //     );
-
-  //     farms.forEach((farm, i) => {
-  //       if (farm.landDocument.file) {
-  //         fd.append(`landDocument_${i}`, farm.landDocument.file || null);
-  //       }
-  //     });
-
-  //     const res = await onboardUser({
-  //       id: associateId,
-  //       payload: fd,
-  //     }).unwrap();
-
-  //     alert("Submitted Successfully!");
-  //     console.log("RESULT:", res);
-  //   } catch (err) {
-  //     console.error("SUBMIT ERROR:", err);
-  //     alert("Submission Failed!");
-  //   }
-  // };
 
 
 
@@ -260,7 +223,7 @@ const SolarFarmForm = () => {
       const fd = new FormData();
       fd.append("onboardType", "SOLARFARM");
       fd.append(
-        "farms",
+        "solarFarms",
         JSON.stringify(
           validFarms.map(f => ({
             ...f,
