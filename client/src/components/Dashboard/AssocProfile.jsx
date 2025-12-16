@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useGetAssociateProfileQuery } from '../../Redux/associateUpdate.api';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { 
-  FiUser, FiMail, FiPhone, FiMapPin, FiCalendar, 
+import {
+  FiUser, FiMail, FiPhone, FiMapPin, FiCalendar,
   FiFileText, FiDownload, FiCreditCard, FiUsers,
   FiSun, FiChevronDown, FiChevronUp, FiCheckCircle,
-  FiXCircle, FiAlertCircle,  FiExternalLink,
+  FiXCircle, FiAlertCircle, FiExternalLink,
   FiZap, FiPower
 } from 'react-icons/fi';
-import { 
+import {
   MdBusinessCenter, MdLocationOn, MdAttachMoney,
   MdAccountBalance, MdElectricBolt, MdGridView,
   MdList, MdVerified, MdWarning
@@ -20,16 +20,16 @@ const AssocProfile = () => {
   const navigate = useNavigate();
   const associate = useSelector((state) => state.associatePartner?.user);
   const associateId = associate?._id;
-  
+
   console.log("Associate Data:", associate);
-  
+
   const { data, isLoading, isError } = useGetAssociateProfileQuery(
     associateId,
     { skip: !associateId }
   );
-  
+
   console.log("Profile API Response:", data);
-  
+
   const [expandedFarm, setExpandedFarm] = useState(null);
   const [expandedConsumer, setExpandedConsumer] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -40,14 +40,14 @@ const AssocProfile = () => {
 
   const profile = data?.profile || data || {};
   const bankDetails = profile?.bankDetails;
-  
+
   // DEBUG: Log the entire data structure
   console.log("Full profile data:", profile);
   console.log("Onboard data:", profile?.onboard);
-  
+
   // Get onboard type from multiple possible locations
   let onboardType = 'CONSUMER'; // Default
-  
+
   // Check multiple possible locations for onboardType
   if (profile?.onboardType) {
     onboardType = profile.onboardType;
@@ -56,13 +56,13 @@ const AssocProfile = () => {
   } else if (associate?.onboardType) {
     onboardType = associate.onboardType;
   }
-  
+
   console.log("Determined Onboard Type:", onboardType);
-  
+
   // Get consumers and solar farms data
   let consumers = [];
   let solarFarms = [];
-  
+
   if (onboardType === 'CONSUMER') {
     // Try multiple possible locations for consumers data
     if (profile?.consumers && Array.isArray(profile.consumers)) {
@@ -82,47 +82,47 @@ const AssocProfile = () => {
       solarFarms = data.solarFarms;
     }
   }
-  
+
   console.log("Consumers data:", consumers);
   console.log("Solar Farms data:", solarFarms);
 
   // Status color mapping
   const getStatusColor = (status) => {
     if (!status) return 'bg-gray-100 text-gray-800';
-    
-    switch(status.toUpperCase()) {
-      case 'APPROVED': 
-      case 'CLEAR': 
+
+    switch (status.toUpperCase()) {
+      case 'APPROVED':
+      case 'CLEAR':
         return 'bg-green-100 text-green-800';
-      case 'PENDING': 
-      case 'IN_PROGRESS': 
+      case 'PENDING':
+      case 'IN_PROGRESS':
         return 'bg-yellow-100 text-yellow-800';
-      case 'REJECTED': 
-      case 'CANCELLED': 
+      case 'REJECTED':
+      case 'CANCELLED':
         return 'bg-red-100 text-red-800';
-      case 'ACTIVE': 
+      case 'ACTIVE':
         return 'bg-blue-100 text-blue-800';
-      case 'INACTIVE': 
+      case 'INACTIVE':
         return 'bg-gray-100 text-gray-800';
-      default: 
+      default:
         return 'bg-gray-100 text-gray-800';
     }
   };
 
   // Calculate total capacity for solar farms
   const totalCapacity = solarFarms.reduce((sum, farm) => {
-    const ac = parseFloat(farm.capacity?.ac) || 
-               parseFloat(farm.acCapacity) || 
-               parseFloat(farm.capacityAC) || 
-               0;
+    const ac = parseFloat(farm.capacity?.ac) ||
+      parseFloat(farm.acCapacity) ||
+      parseFloat(farm.capacityAC) ||
+      0;
     return sum + ac;
   }, 0);
 
   // Calculate total load capacity for consumers
   const totalLoadCapacity = consumers.reduce((sum, consumer) => {
-    const load = parseFloat(consumer.consumerLoadCapacity) || 
-                 parseFloat(consumer.loadCapacity) || 
-                 0;
+    const load = parseFloat(consumer.consumerLoadCapacity) ||
+      parseFloat(consumer.loadCapacity) ||
+      0;
     return sum + load;
   }, 0);
 
@@ -134,18 +134,18 @@ const AssocProfile = () => {
     ];
 
     if (onboardType === 'CONSUMER') {
-      tabs.splice(1, 0, { 
-        id: 'consumers', 
-        label: 'Consumers', 
+      tabs.splice(1, 0, {
+        id: 'consumers',
+        label: 'Consumers',
         icon: <FiUsers />,
-        badge: consumers.length 
+        badge: consumers.length
       });
     } else if (onboardType === 'SOLARFARM') {
-      tabs.splice(1, 0, { 
-        id: 'solarFarms', 
-        label: 'Solar Farms', 
+      tabs.splice(1, 0, {
+        id: 'solarFarms',
+        label: 'Solar Farms',
         icon: <FiSun />,
-        badge: solarFarms.length 
+        badge: solarFarms.length
       });
     }
 
@@ -162,10 +162,10 @@ const AssocProfile = () => {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Associate Dashboard</h1>
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <p className="text-gray-600">Welcome back, {profile?.name || associate?.name || 'Associate'}</p>
-        
+
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4 bg-white p-3 md:p-4 rounded-xl shadow-sm">
           <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
             {(profile?.name || associate?.name || 'A').charAt(0).toUpperCase()}
@@ -229,8 +229,8 @@ const AssocProfile = () => {
             <StatCard
               icon={<FaRegBuilding className="w-6 h-6 text-blue-500" />}
               title="Active Projects"
-              value={solarFarms.filter(farm => 
-                farm.statusOfFarm === 'Clear' || 
+              value={solarFarms.filter(farm =>
+                farm.statusOfFarm === 'Clear' ||
                 farm.regulatoryStatus === 'APPROVED' ||
                 farm.status === 'ACTIVE'
               ).length}
@@ -239,12 +239,12 @@ const AssocProfile = () => {
             <StatCard
               icon={<MdVerified className="w-6 h-6 text-emerald-500" />}
               title="Approval Rate"
-              value={solarFarms.length > 0 ? 
-                `${Math.round((solarFarms.filter(f => 
-                  f.statusOfFarm === 'Clear' || 
+              value={solarFarms.length > 0 ?
+                `${Math.round((solarFarms.filter(f =>
+                  f.statusOfFarm === 'Clear' ||
                   f.regulatoryStatus === 'APPROVED' ||
                   f.status === 'APPROVED'
-                ).length / solarFarms.length) * 100)}%` : 
+                ).length / solarFarms.length) * 100)}%` :
                 '0%'
               }
               color="emerald"
@@ -254,34 +254,32 @@ const AssocProfile = () => {
       </div>
 
       {/* Onboard Type Banner */}
-      <div className={`mb-6 p-4 rounded-xl border ${
-        onboardType === 'CONSUMER' 
-          ? 'bg-purple-50 border-purple-200' 
+      <div className={`mb-6 p-4 rounded-xl border ${onboardType === 'CONSUMER'
+          ? 'bg-purple-50 border-purple-200'
           : 'bg-amber-50 border-amber-200'
-      }`}>
+        }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${
-              onboardType === 'CONSUMER' ? 'bg-purple-100' : 'bg-amber-100'
-            }`}>
+            <div className={`p-2 rounded-lg ${onboardType === 'CONSUMER' ? 'bg-purple-100' : 'bg-amber-100'
+              }`}>
               {onboardType === 'CONSUMER' ? (
                 <FiUsers className="w-5 h-5 text-purple-600" />
               ) : (
                 <FiSun className="w-5 h-5 text-amber-600" />
               )}
             </div>
-          
+
           </div>
-        
+
         </div>
       </div>
 
       {/* Navigation Tabs */}
       <div className="flex flex-wrap gap-2 mb-6">
         {availableTabs.map(tab => (
-          <TabButton 
+          <TabButton
             key={tab.id}
-            active={activeTab === tab.id} 
+            active={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
             icon={tab.icon}
             badge={tab.badge}
@@ -306,10 +304,10 @@ const AssocProfile = () => {
                 <InfoItem icon={<FiPhone />} label="Mobile" value={profile?.mobile || associate?.mobile} />
                 <InfoItem icon={<FiMapPin />} label="Address" value={profile?.address || associate?.address} />
                 <InfoItem icon={<MdBusinessCenter />} label="Role" value={profile?.role || 'Associate'} />
-                <InfoItem 
-                  icon={<FiCalendar />} 
-                  label="Joined Date" 
-                  value={new Date(profile?.createdAt || associate?.createdAt || new Date()).toLocaleDateString()} 
+                <InfoItem
+                  icon={<FiCalendar />}
+                  label="Joined Date"
+                  value={new Date(profile?.createdAt || associate?.createdAt || new Date()).toLocaleDateString()}
                 />
               </div>
             </div>
@@ -322,7 +320,7 @@ const AssocProfile = () => {
                     <FiUsers className="text-gray-600" /> Recent Consumers
                   </h3>
                   {consumers.length > 3 && (
-                    <button 
+                    <button
                       className="text-sm text-purple-600 hover:text-purple-800 font-medium"
                       onClick={() => setActiveTab('consumers')}
                     >
@@ -333,15 +331,15 @@ const AssocProfile = () => {
                 {consumers.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {consumers.slice(0, 3).map((consumer, index) => (
-                      <ConsumerCard 
-                        key={consumer._id || consumer.id || index} 
-                        consumer={consumer} 
-                        index={index} 
+                      <ConsumerCard
+                        key={consumer._id || consumer.id || index}
+                        consumer={consumer}
+                        index={index}
                       />
                     ))}
                   </div>
                 ) : (
-                  <EmptyState 
+                  <EmptyState
                     icon={<FiUsers className="w-12 h-12 text-gray-300" />}
                     title="No Consumers Added"
                     description="You haven't added any consumers yet."
@@ -357,7 +355,7 @@ const AssocProfile = () => {
                     <FiSun className="text-gray-600" /> Recent Solar Farms
                   </h3>
                   {solarFarms.length > 2 && (
-                    <button 
+                    <button
                       className="text-sm text-amber-600 hover:text-amber-800 font-medium"
                       onClick={() => setActiveTab('solarFarms')}
                     >
@@ -368,8 +366,8 @@ const AssocProfile = () => {
                 {solarFarms.length > 0 ? (
                   <div className="space-y-4">
                     {solarFarms.slice(0, 2).map((farm, index) => (
-                      <FarmCard 
-                        key={farm._id || farm.id || index} 
+                      <FarmCard
+                        key={farm._id || farm.id || index}
                         farm={farm}
                         isExpanded={expandedFarm === (farm._id || farm.id)}
                         onToggle={() => setExpandedFarm(
@@ -379,12 +377,12 @@ const AssocProfile = () => {
                     ))}
                   </div>
                 ) : (
-                  <EmptyState 
+                  <EmptyState
                     icon={<FiSun className="w-12 h-12 text-gray-300" />}
                     title="No Solar Farms Added"
                     description="You haven't added any solar farms yet."
                     actionText="Add Solar Farms"
-                    onAction={() => navigate('/solar-farm-form')}
+                    onAction={() => navigate('/Associate-Dash')}
                   />
                 )}
               </div>
@@ -422,9 +420,9 @@ const AssocProfile = () => {
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {consumers.map((consumer, index) => (
-                  <ConsumerCard 
-                    key={consumer._id || consumer.id || index} 
-                    consumer={consumer} 
+                  <ConsumerCard
+                    key={consumer._id || consumer.id || index}
+                    consumer={consumer}
                     index={index}
                     isExpanded={expandedConsumer === (consumer._id || consumer.id)}
                     onToggle={() => setExpandedConsumer(
@@ -463,9 +461,9 @@ const AssocProfile = () => {
                           </span>
                         </td>
                         <td className="py-4 px-4 text-sm text-gray-500">
-                          {consumer.createdAt ? new Date(consumer.createdAt).toLocaleDateString() : 
-                           consumer.createdDate ? new Date(consumer.createdDate).toLocaleDateString() : 
-                           'N/A'}
+                          {consumer.createdAt ? new Date(consumer.createdAt).toLocaleDateString() :
+                            consumer.createdDate ? new Date(consumer.createdDate).toLocaleDateString() :
+                              'N/A'}
                         </td>
                         <td className="py-4 px-4">
                           <button className="text-sm text-purple-600 hover:text-purple-900 font-medium">
@@ -480,7 +478,7 @@ const AssocProfile = () => {
             )}
 
             {consumers.length === 0 && (
-              <EmptyState 
+              <EmptyState
                 icon={<FiUsers className="w-16 h-16 text-gray-300" />}
                 title="No Consumers Found"
                 description="Start adding consumers to see them here."
@@ -521,8 +519,8 @@ const AssocProfile = () => {
             {viewMode === 'grid' ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {solarFarms.map((farm, index) => (
-                  <FarmCard 
-                    key={farm._id || farm.id || index} 
+                  <FarmCard
+                    key={farm._id || farm.id || index}
                     farm={farm}
                     index={index}
                     isExpanded={expandedFarm === (farm._id || farm.id)}
@@ -536,8 +534,8 @@ const AssocProfile = () => {
             ) : (
               <div className="space-y-4">
                 {solarFarms.map((farm, index) => (
-                  <FarmCard 
-                    key={farm._id || farm.id || index} 
+                  <FarmCard
+                    key={farm._id || farm.id || index}
                     farm={farm}
                     index={index}
                     isExpanded={expandedFarm === (farm._id || farm.id)}
@@ -551,7 +549,7 @@ const AssocProfile = () => {
             )}
 
             {solarFarms.length === 0 && (
-              <EmptyState 
+              <EmptyState
                 icon={<FiSun className="w-16 h-16 text-gray-300" />}
                 title="No Solar Farms Found"
                 description="Start adding solar farms to see them here."
@@ -567,7 +565,7 @@ const AssocProfile = () => {
             <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
               <FiCreditCard className="text-gray-600" /> Bank Details
             </h3>
-            
+
             {bankDetails ? (
               <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200">
                 <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-200">
@@ -588,8 +586,8 @@ const AssocProfile = () => {
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Account Number</p>
                     <p className="font-semibold text-gray-900">
-                      {bankDetails.accountNumber ? 
-                        `•••• ${bankDetails.accountNumber.toString().slice(-4)}` : 
+                      {bankDetails.accountNumber ?
+                        `•••• ${bankDetails.accountNumber.toString().slice(-4)}` :
                         'N/A'}
                     </p>
                   </div>
@@ -609,7 +607,7 @@ const AssocProfile = () => {
                 </div>
               </div>
             ) : (
-              <EmptyState 
+              <EmptyState
                 icon={<FiCreditCard className="w-16 h-16 text-gray-300" />}
                 title="No Bank Details Added"
                 description="Add your bank details to receive payments."
@@ -646,7 +644,7 @@ const EmptyState = ({ icon, title, description, actionText, onAction }) => (
     <h4 className="text-lg font-semibold text-gray-900 mt-4 mb-2">{title}</h4>
     <p className="text-gray-500 mb-6 max-w-md mx-auto">{description}</p>
     {actionText && onAction && (
-      <button 
+      <button
         onClick={onAction}
         className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700"
       >
@@ -696,18 +694,16 @@ const StatCard = ({ icon, title, value, color, suffix }) => {
 const TabButton = ({ active, onClick, icon, children, badge }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors ${
-      active 
-        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white' 
+    className={`px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors ${active
+        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
         : 'text-gray-600 hover:bg-gray-100'
-    }`}
+      }`}
   >
     {icon}
     {children}
     {badge !== undefined && (
-      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-        active ? 'bg-white/20' : 'bg-gray-200 text-gray-700'
-      }`}>
+      <span className={`text-xs px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20' : 'bg-gray-200 text-gray-700'
+        }`}>
         {badge}
       </span>
     )}
@@ -728,9 +724,8 @@ const ConsumerCard = ({ consumer, index, isExpanded, onToggle }) => {
   const hasDetails = onToggle; // Check if expandable
 
   return (
-    <div className={`bg-gradient-to-br from-gray-50 to-purple-50 rounded-xl p-4 border border-gray-200 hover:border-purple-200 transition-colors ${
-      hasDetails ? 'cursor-pointer hover:bg-gray-100/50' : ''
-    }`} onClick={hasDetails ? onToggle : undefined}>
+    <div className={`bg-gradient-to-br from-gray-50 to-purple-50 rounded-xl p-4 border border-gray-200 hover:border-purple-200 transition-colors ${hasDetails ? 'cursor-pointer hover:bg-gray-100/50' : ''
+      }`} onClick={hasDetails ? onToggle : undefined}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-br from-purple-100 to-indigo-100 text-purple-600 rounded-lg flex items-center justify-center font-semibold">
@@ -751,7 +746,7 @@ const ConsumerCard = ({ consumer, index, isExpanded, onToggle }) => {
           </div>
         )}
       </div>
-      
+
       <div className="flex justify-between items-center">
         <div className="text-sm">
           <span className="text-gray-600">Load Capacity:</span>
@@ -776,9 +771,9 @@ const ConsumerCard = ({ consumer, index, isExpanded, onToggle }) => {
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Added On:</span>
               <span className="font-medium text-gray-900 text-sm">
-                {consumer.createdAt ? new Date(consumer.createdAt).toLocaleDateString() : 
-                 consumer.createdDate ? new Date(consumer.createdDate).toLocaleDateString() : 
-                 'N/A'}
+                {consumer.createdAt ? new Date(consumer.createdAt).toLocaleDateString() :
+                  consumer.createdDate ? new Date(consumer.createdDate).toLocaleDateString() :
+                    'N/A'}
               </span>
             </div>
             <div className="flex justify-between">
@@ -798,34 +793,34 @@ const ConsumerCard = ({ consumer, index, isExpanded, onToggle }) => {
 const FarmCard = ({ farm, index, isExpanded, onToggle, viewMode = 'list' }) => {
   const getStatusIcon = (status) => {
     if (!status) return null;
-    
-    switch(status.toUpperCase()) {
+
+    switch (status.toUpperCase()) {
       case 'APPROVED':
-      case 'CLEAR': 
+      case 'CLEAR':
         return <FiCheckCircle className="w-4 h-4" />;
-      case 'PENDING': 
+      case 'PENDING':
         return <FiAlertCircle className="w-4 h-4" />;
       case 'REJECTED':
-      case 'CANCELLED': 
+      case 'CANCELLED':
         return <FiXCircle className="w-4 h-4" />;
-      default: 
+      default:
         return null;
     }
   };
 
   const statusColor = (status) => {
     if (!status) return 'bg-gray-100 text-gray-800';
-    
-    switch(status.toUpperCase()) {
-      case 'APPROVED': 
-      case 'CLEAR': 
+
+    switch (status.toUpperCase()) {
+      case 'APPROVED':
+      case 'CLEAR':
         return 'bg-green-100 text-green-800';
-      case 'PENDING': 
+      case 'PENDING':
         return 'bg-yellow-100 text-yellow-800';
-      case 'REJECTED': 
-      case 'CANCELLED': 
+      case 'REJECTED':
+      case 'CANCELLED':
         return 'bg-red-100 text-red-800';
-      default: 
+      default:
         return 'bg-gray-100 text-gray-800';
     }
   };
@@ -838,10 +833,10 @@ const FarmCard = ({ farm, index, isExpanded, onToggle, viewMode = 'list' }) => {
   const landOwnership = farm.landOwnership || 'N/A';
   const status = farm.statusOfFarm || farm.regulatoryStatus || farm.status || 'N/A';
   const coordinates = farm.location?.coordinates || farm.coordinates;
-  
+
   return (
     <div className={`${viewMode === 'grid' ? 'bg-gradient-to-br from-gray-50 to-amber-50' : 'bg-gray-50'} rounded-xl border border-gray-200 overflow-hidden`}>
-      <div 
+      <div
         className={`p-4 ${isExpanded ? 'border-b border-gray-200' : ''} cursor-pointer hover:bg-gray-100/50`}
         onClick={onToggle}
       >
@@ -898,9 +893,9 @@ const FarmCard = ({ farm, index, isExpanded, onToggle, viewMode = 'list' }) => {
               <div className="space-y-2">
                 <InfoRow label="Taluka" value={taluka} />
                 <InfoRow label="District" value={district} />
-                <InfoRow 
-                  label="Coordinates" 
-                  value={coordinates?.lat && coordinates?.lng 
+                <InfoRow
+                  label="Coordinates"
+                  value={coordinates?.lat && coordinates?.lng
                     ? `${coordinates.lat}, ${coordinates.lng}`
                     : 'N/A'
                   }
@@ -915,10 +910,10 @@ const FarmCard = ({ farm, index, isExpanded, onToggle, viewMode = 'list' }) => {
               <div className="space-y-2">
                 <InfoRow label="AC Capacity" value={capacityAC} />
                 <InfoRow label="DC Capacity" value={farm.capacity?.dc || farm.dcCapacity || farm.capacityDC || 'N/A'} />
-                <InfoRow 
-                  label="Substation" 
-                  value={farm.substation?.substation ? 
-                    `${farm.substation.substation} (${farm.substation.category || ''})` : 
+                <InfoRow
+                  label="Substation"
+                  value={farm.substation?.substation ?
+                    `${farm.substation.substation} (${farm.substation.category || ''})` :
                     'N/A'
                   }
                 />
@@ -965,17 +960,17 @@ const FarmCard = ({ farm, index, isExpanded, onToggle, viewMode = 'list' }) => {
             <div className="mb-6">
               <h5 className="font-medium text-gray-900 mb-3">Project Timeline</h5>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <TimelineItem 
-                  label="EPC Work Start" 
-                  date={farm.expectedCommissioningTimeline.epcWorkStartDate} 
+                <TimelineItem
+                  label="EPC Work Start"
+                  date={farm.expectedCommissioningTimeline.epcWorkStartDate}
                 />
-                <TimelineItem 
-                  label="Injection Date" 
-                  date={farm.expectedCommissioningTimeline.injectionDate} 
+                <TimelineItem
+                  label="Injection Date"
+                  date={farm.expectedCommissioningTimeline.injectionDate}
                 />
-                <TimelineItem 
-                  label="Commercial Operations" 
-                  date={farm.expectedCommissioningTimeline.commercialOperationsDate} 
+                <TimelineItem
+                  label="Commercial Operations"
+                  date={farm.expectedCommissioningTimeline.commercialOperationsDate}
                 />
               </div>
             </div>
